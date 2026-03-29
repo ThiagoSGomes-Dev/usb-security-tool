@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB Security Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #00ff88;
+    --green-dim: #00ff8833;
+    --green-mid: #00cc66;
+    --bg: #080808;
+    --bg2: #0d0d0d;
+    --bg3: #111;
+    --border: #1a1a1a;
+    --muted: #444;
+    --mid: #666;
+    --light: #aaa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* Noise grain */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 998;
+    opacity: 0.4;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 60px 0 40px;
+    animation: fadeIn 0.6s ease;
+  }
+
+  .terminal-window {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,255,136,0.05);
+  }
+
+  .titlebar {
+    background: #131313;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; }
+  .dot-y { background: #ffbd2e; }
+  .dot-g { background: #28c840; }
+
+  .titlebar-label {
+    color: var(--mid);
+    font-size: 12px;
+    margin: 0 auto;
+    letter-spacing: 2px;
+  }
+
+  .terminal-body {
+    padding: 28px 32px 32px;
+  }
+
+  .ascii-banner {
+    color: var(--green);
+    font-size: 12px;
+    line-height: 1.18;
+    white-space: pre;
+    letter-spacing: 1px;
+    text-shadow: 0 0 12px rgba(0,255,136,0.4);
+    animation: glow 3s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from { text-shadow: 0 0 8px rgba(0,255,136,0.3); }
+    to   { text-shadow: 0 0 20px rgba(0,255,136,0.6); }
+  }
+
+  .divider {
+    color: #1e1e1e;
+    margin: 18px 0 12px;
+    font-size: 13px;
+    white-space: pre;
+  }
+
+  .meta-grid {
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 1.9;
+  }
+
+  .meta-row { display: flex; gap: 0; }
+  .meta-key { color: var(--muted); }
+  .meta-bracket { color: #333; }
+  .meta-label { color: var(--green); min-width: 60px; }
+  .meta-val { color: var(--light); margin-left: 8px; }
+
+  .cmd-grid {
+    display: grid;
+    gap: 3px;
+    font-size: 13px;
+    line-height: 1.9;
+    margin-top: 4px;
+  }
+
+  .cmd-row { display: flex; gap: 16px; }
+  .cmd-name { color: var(--muted); min-width: 260px; }
+  .cmd-desc { color: #555; }
+
+  .prompt-line {
+    margin-top: 20px;
+    color: var(--green);
+    font-size: 14px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 9px;
+    height: 15px;
+    background: var(--green);
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── BADGES ── */
+  .badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    padding-left: 2px;
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 4px 12px;
+    border: 1px solid;
+    border-radius: 2px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  .badge-green  { border-color: var(--green); color: var(--green); }
+  .badge-blue   { border-color: #4af; color: #4af; }
+  .badge-red    { border-color: #f55; color: #f55; }
+  .badge-yellow { border-color: #fa0; color: #fa0; }
+
+  /* ── SECTIONS ── */
+  .section {
+    margin-top: 60px;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .section-title {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: var(--green);
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-title::before {
+    content: '//';
+    color: var(--muted);
+    font-size: 20px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin-left: 8px;
+  }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 0 6px 6px 0;
+    padding: 20px 24px;
+    font-size: 13px;
+    line-height: 1.9;
+    position: relative;
+    overflow-x: auto;
+  }
+
+  .code-block .comment { color: var(--muted); }
+  .code-block .cmd     { color: var(--green); }
+  .code-block .arg     { color: #7df; }
+  .code-block .output  { color: #666; }
+  .code-block .step    { color: var(--green-mid); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: transparent;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+
+  .copy-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── FLOW ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 8px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #111;
+  }
+
+  .flow-step:last-child { border-bottom: none; }
+
+  .flow-num {
+    font-family: 'VT323', monospace;
+    font-size: 32px;
+    color: var(--muted);
+    min-width: 36px;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .flow-content { flex: 1; }
+  .flow-title { color: var(--green); font-size: 14px; margin-bottom: 4px; }
+  .flow-desc  { color: #555; font-size: 13px; line-height: 1.6; }
+  .flow-code  { color: var(--light); font-size: 12px; margin-top: 6px; }
+
+  /* ── TABLE ── */
+  .sec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .sec-table th {
+    text-align: left;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sec-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #111;
+    color: var(--light);
+    vertical-align: top;
+  }
+
+  .sec-table td:first-child { color: var(--green); }
+  .sec-table tr:last-child td { border-bottom: none; }
+
+  /* ── COMMANDS REF ── */
+  .cmd-ref {
+    display: grid;
+    gap: 10px;
+  }
+
+  .cmd-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .cmd-card:hover { border-color: #2a2a2a; }
+
+  .cmd-card-name {
+    color: var(--green);
+    font-size: 13px;
+    min-width: 220px;
+    line-height: 1.5;
+  }
+
+  .cmd-card-desc {
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    margin-top: 80px;
+    border-top: 1px solid var(--border);
+    padding: 30px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  footer a { color: var(--green); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,8,8,0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .nav-logo {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    color: var(--green);
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(0,255,136,0.4);
+    margin-right: auto;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 1px;
+    transition: color 0.2s;
+  }
+
+  nav a:hover { color: var(--green); }
+
+  .nav-gh {
+    border: 1px solid var(--muted);
+    padding: 4px 14px;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  .nav-gh:hover { border-color: var(--green) !important; color: var(--green) !important; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 640px) {
+    .ascii-banner { font-size: 7px; letter-spacing: 0; }
+    .cmd-card { flex-direction: column; gap: 6px; }
+    .cmd-card-name { min-width: auto; }
+    footer { flex-direction: column; gap: 12px; text-align: center; }
+    nav a:not(.nav-gh):not(:first-child) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">USB-SEC</span>
+  <a href="#install">install</a>
+  <a href="#usage">usage</a>
+  <a href="#security">security</a>
+  <a href="https://github.com/youruser/usb-security-tool" class="nav-gh">github</a>
+</nav>
+
+<div class="container">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="terminal-window">
+      <div class="titlebar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="titlebar-label">pendrive_cripto.py</span>
+      </div>
+      <div class="terminal-body">
+        <div class="ascii-banner"> _   _  ___  ____     ____  _____ ____ _   _ ____  ___ _______   __
+| | | |/ ___|| __ )   / ___|| ____/ ___| | | |  _ \|_ _|_   _\ \ / /
+| | | |\___ \|  _ \   \___ \|  _|| |   | | | | |_) || |  | |  \ V /
+| |_| | ___) | |_) |   ___) | |__| |___| |_| |  _ < | |  | |   | |
+ \___/ |____/|____/   |____/|_____\____|\___/|_| \_|___| |_|   |_|
+
+ _____  ___   ___  _
+|_   _|/ _ \ / _ \| |
+  | | | | | | | | | |
+  | | | |_| | |_| | |___
+  |_|  \___/ \___/|_____|</div>
+
+        <div class="divider">──────────────────────────────────────────────────────</div>
+
+        <div class="meta-grid">
+          <div class="meta-row">
+            <span class="meta-bracket">  [ </span><span class="meta-label">version</span><span class="meta-bracket"> ]</span><span class="meta-val">v1.0.0</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-bracket">  [ </span><span class="meta-label">cipher </span><span class="meta-bracket"> ]</span><span class="meta-val">AES-256-GCM</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-bracket">  [ </span><span class="meta-label">kdf    </span><span class="meta-bracket"> ]</span><span class="meta-val">PBKDF2-SHA256  (480,000 iterations)</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-bracket">  [ </span><span class="meta-label">platform</span><span class="meta-bracket">]</span><span class="meta-val">Windows — no installation required</span>
+          </div>
+        </div>
+
+        <div class="divider">──────────────────────────────────────────────────────</div>
+
+        <div class="cmd-grid">
+          <div class="cmd-row"><span class="cmd-name">usb</span><span class="cmd-desc">open interactive menu</span></div>
+          <div class="cmd-row"><span class="cmd-name">usb --enc &lt;path&gt;</span><span class="cmd-desc">encrypt directory</span></div>
+          <div class="cmd-row"><span class="cmd-name">usb --dec &lt;path&gt;</span><span class="cmd-desc">decrypt directory</span></div>
+          <div class="cmd-row"><span class="cmd-name">usb --inspect &lt;path&gt;</span><span class="cmd-desc">check encryption status</span></div>
+          <div class="cmd-row"><span class="cmd-name">usb --help</span><span class="cmd-desc">show all commands</span></div>
+        </div>
+
+        <div class="divider">──────────────────────────────────────────────────────</div>
+        <div class="prompt-line">E:\&gt; <span class="cursor"></span></div>
+      </div>
+    </div>
+
+    <div class="badges">
+      <span class="badge badge-green">Python 3.8+</span>
+      <span class="badge badge-blue">Windows</span>
+      <span class="badge badge-red">AES-256-GCM</span>
+      <span class="badge badge-yellow">MIT License</span>
+      <span class="badge badge-green">100% Offline</span>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section" id="install">
+    <h2 class="section-title">Installation</h2>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <div class="flow-content">
+          <div class="flow-title">Clone the repo onto your USB drive</div>
+          <div class="flow-desc">Make sure you are cloning directly into the USB drive root.</div>
+          <div class="code-block" style="margin-top:10px">
+            <span class="cmd">git clone</span> <span class="arg">https://github.com/youruser/usb-security-tool</span> <span class="arg">E:\</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <div class="flow-content">
+          <div class="flow-title">Download Python Embeddable</div>
+          <div class="flow-desc">Go to <a href="https://www.python.org/downloads/windows/" style="color:var(--green)">python.org/downloads/windows</a> and download <strong style="color:var(--light)">Windows embeddable package (64-bit)</strong>. Extract the contents into the <code style="color:var(--green)">python\</code> folder on the drive.</div>
+          <div class="code-block" style="margin-top:10px">
+<span class="output">E:\
+└── python\
+    ├── python.exe   ← must be here
+    └── ...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <div class="flow-content">
+          <div class="flow-title">Run the installer</div>
+          <div class="flow-desc">Open CMD, navigate to the drive and run INSTALL.bat. It handles everything automatically.</div>
+          <div class="code-block" style="margin-top:10px">
+<span class="cmd">E:</span>
+<span class="cmd">INSTALL.bat</span>
+<span class="output">
+  [1/4] Checking drive type...      OK - USB removable drive detected: E:
+  [2/4] Checking portable Python... OK - python\python.exe found.
+  [3/4] Installing dependencies...  done.
+  [4/4] Hiding system files...      OK - all files hidden.
+
+  Done! Opening secure terminal...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USAGE -->
+  <section class="section" id="usage">
+    <h2 class="section-title">Usage</h2>
+
+    <div class="cmd-ref">
+      <div class="cmd-card">
+        <div class="cmd-card-name"><span style="color:var(--muted)">$</span> usb</div>
+        <div class="cmd-card-desc">Opens the interactive menu. Choose encrypt, decrypt, or inspect from a numbered list.</div>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card-name"><span style="color:var(--muted)">$</span> usb --enc &lt;path&gt;</div>
+        <div class="cmd-card-desc">Encrypts all files in the target directory. Already encrypted files are skipped automatically. Original files are deleted after encryption.</div>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card-name"><span style="color:var(--muted)">$</span> usb --dec &lt;path&gt;</div>
+        <div class="cmd-card-desc">Decrypts all <code style="color:var(--green)">.enc</code> files in the target directory using your password. Wrong password = instant failure, no data exposed.</div>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card-name"><span style="color:var(--muted)">$</span> usb --inspect &lt;path&gt;</div>
+        <div class="cmd-card-desc">Shows how many files are encrypted vs plaintext without modifying anything.</div>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card-name"><span style="color:var(--muted)">$</span> usb --help</div>
+        <div class="cmd-card-desc">Displays the ASCII banner with all available commands and usage examples.</div>
+      </div>
+    </div>
+
+    <div class="code-block" style="margin-top: 20px;">
+      <span class="step">example session</span>
+<span class="output">E:\&gt; </span><span class="cmd">usb --enc</span> <span class="arg">"E:\My Documents"</span>
+<span class="output">
+  files found: 12
+
+  [  1/12] encrypting: report.pdf (2.1 MB) ...    ok
+  [  2/12] encrypting: photo.jpg (4.8 MB) ...     ok
+  [  3/12] encrypting: notes.txt (12.0 KB) ...    ok
+  ...
+
+  ────────────────────────────────────────────────────
+  success: 12 file(s) encrypted.
+  ────────────────────────────────────────────────────
+
+E:\&gt; </span><span class="cursor"></span>
+    </div>
+  </section>
+
+  <!-- SECURITY -->
+  <section class="section" id="security">
+    <h2 class="section-title">Security Model</h2>
+
+    <table class="sec-table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Encryption</td>
+          <td>AES-256-GCM — authenticated encryption, detects tampering</td>
+        </tr>
+        <tr>
+          <td>Key derivation</td>
+          <td>PBKDF2-SHA256 with 480,000 iterations — brute force resistant</td>
+        </tr>
+        <tr>
+          <td>Salt</td>
+          <td>16 bytes, random per file — prevents rainbow table attacks</td>
+        </tr>
+        <tr>
+          <td>Nonce</td>
+          <td>12 bytes, random per file — identical files produce different ciphertext</td>
+        </tr>
+        <tr>
+          <td>Key storage</td>
+          <td>Never stored — derived at runtime, lives only in RAM</td>
+        </tr>
+        <tr>
+          <td>Network</td>
+          <td>Zero — fully offline after first-time setup</td>
+        </tr>
+        <tr>
+          <td>Backdoor</td>
+          <td>None — wrong password = unrecoverable data</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="code-block" style="margin-top: 20px;">
+      <span class="step">encrypted file format</span>
+<span class="output">┌──────────┬──────────┬──────────────────────────────────────┐
+│  salt    │  nonce   │        ciphertext + GCM tag          │
+│ 16 bytes │ 12 bytes │             N bytes                  │
+└──────────┴──────────┴──────────────────────────────────────┘</span>
+    </div>
+  </section>
+
+</div>
+
+<footer style="padding: 30px 24px; max-width: 900px; margin: 0 auto;">
+  <span>USB Security Tool — AES-256-GCM portable encryption</span>
+  <span><a href="https://github.com/youruser/usb-security-tool">github.com/youruser/usb-security-tool</a> · MIT License</span>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const block = btn.closest('.code-block');
+      const text = block.innerText.replace('COPY\n','').trim();
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'COPIED';
+        setTimeout(() => btn.textContent = 'COPY', 1500);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

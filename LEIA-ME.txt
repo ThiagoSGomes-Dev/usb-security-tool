@@ -1,0 +1,50 @@
+====================================================
+   USB SECURITY TOOL  |  AES-256-GCM
+====================================================
+
+HOW TO USE
+----------
+1. Connect the USB drive to a Windows PC
+2. Open CMD and go to the drive:
+
+     E:
+
+3. Run the installer (first time only):
+
+     INSTALL.bat
+
+4. After setup, use the usb command:
+
+     usb --help              show all commands
+     usb                     open interactive menu
+     usb --enc E:\folder     encrypt a folder
+     usb --dec E:\folder     decrypt a folder
+     usb --inspect E:\       check encryption status
+
+====================================================
+
+REQUIREMENTS
+------------
+  - Windows 7, 8, 10 or 11 (64-bit)
+  - No Python installation needed
+  - Internet required only during first-time setup
+
+====================================================
+
+RECOVERING HIDDEN FILES
+-----------------------
+If system files are hidden and you need to see them:
+
+     attrib -h -s E:\SHOW.bat
+     E:\SHOW.bat
+
+====================================================
+
+WARNING
+-------
+  - If you forget your password, files CANNOT
+    be recovered. There is no backdoor.
+  - Always encrypt before removing the drive.
+  - Keep a backup of important files.
+
+====================================================
